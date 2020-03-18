@@ -20,8 +20,7 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #THE SOFTWARE.
 
-from gi.repository import Gtk
-from gi.repository import GObject
+gi.require_version('GConf', '2.0')
 try:
     from gi.repository import GConf
     HAS_GCONF = True
@@ -35,19 +34,14 @@ import os
 import string
 from gettext import gettext as _
 
-try:
-    OLD_SUGAR_SYSTEM = False
-    import json
-    json.dumps
-    from json import load as jload
-    from json import dump as jdump
-except (ImportError, AttributeError):
-    try:
-        import simplejson as json
-        from simplejson import load as jload
-        from simplejson import dump as jdump
-    except:
-        OLD_SUGAR_SYSTEM = True
+from gi.repository import Gtk
+from gi.repository import GObject
+from gi.repository import GdkPixbuf
+from gi.repository import GConf
+import json
+json.dumps
+from json import load as jload
+from json import dump as jdump      
 from StringIO import StringIO
 
 from taconstants import (HIT_HIDE, HIT_SHOW, XO1, XO15, XO175, XO4, UNKNOWN,
@@ -286,13 +280,9 @@ def get_id(connection):
 
 def json_dump(data):
     ''' Save data using available JSON tools. '''
-    if OLD_SUGAR_SYSTEM is True:
-        return json.write(data)
-    else:
-        io = StringIO()
-        jdump(data, io)
-        return io.getvalue()
-
+     io = StringIO()
+    jdump(data, io)
+    return io.getvalue()
 
 def get_load_name(filefilter, load_save_folder):
     ''' Open a load file dialog. '''
@@ -399,7 +389,7 @@ def do_dialog(dialog, suffix, load_save_folder):
     dialog.add_filter(file_filter)
     dialog.set_current_folder(load_save_folder)
     response = dialog.run()
-    if response == Gtk.ResponseType.OK:
+    if response == Gtk.ResponseType:
         result = dialog.get_filename()
         load_save_folder = dialog.get_current_folder()
     dialog.destroy()
@@ -439,7 +429,7 @@ def get_pixbuf_from_journal(dsobject, w, h):
     except:
         try:
             pixbufloader = \
-                GdkPixbuf.Pixbuf.loader_new_with_mime_type('image/png')
+                GdkPixbuf.PixbufLoader.new_with_mime_type('image/png')
             pixbufloader.set_size(min(300, int(w)), min(225, int(h)))
             pixbufloader.write(dsobject.metadata['preview'])
             pixbufloader.close()
@@ -881,8 +871,6 @@ def power_manager_off(status):
          power_manager_off(True) --> Disable power manager
          power_manager_off(False) --> Use custom power manager
     '''
-    if not HAS_GCONF:
-        return
 
     global FIRST_TIME
 

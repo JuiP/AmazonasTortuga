@@ -20,12 +20,11 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #THE SOFTWARE.
 
-from gi.repository import Gtk
+from gi.repository import Gtk, Gdk
 from math import pi
 import os
-from gi.repository import Pango
+from gi.repository import Pango , PangoCairo, GObject
 import cairo
-import pangocairo
 
 from tautils import get_path
 from taconstants import COLORDICT, TMP_SVG_PATH
@@ -114,8 +113,6 @@ class TurtleGraphics:
 
         # Build a cairo.Context from a cairo.XlibSurface
         self.canvas = cairo.Context(self.turtle_window.turtle_canvas)
-        cr = Gdk.CairoContext(self.canvas)
-        cr.set_line_cap(1)  # Set the line cap to be round
 
         self.set_pen_size(5)
 
@@ -268,8 +265,7 @@ class TurtleGraphics:
     def draw_surface(self, surface, x, y, w, h):
         ''' Draw a surface '''
 
-        def _draw_surface(cr, surface, x, y, w, h):
-            cc = Gdk.CairoContext(cr)
+        def _draw_surface(cc, surface, x, y, w, h):
             cc.set_source_surface(surface, x, y)
             cc.rectangle(x, y, w, h)
             cc.fill()
@@ -282,16 +278,15 @@ class TurtleGraphics:
     def draw_pixbuf(self, pixbuf, a, b, x, y, w, h, heading):
         ''' Draw a pixbuf '''
 
-        def _draw_pixbuf(cr, pixbuf, a, b, x, y, w, h, heading):
+        def _draw_pixbuf(cc, pixbuf, a, b, x, y, w, h, heading):
             # Build a Gdk.CairoContext from a cairo.Context to access
             # the set_source_pixbuf attribute.
-            cc = Gdk.CairoContext(cr)
             cc.save()
             # center the rotation on the center of the image
             cc.translate(x + w / 2., y + h / 2.)
             cc.rotate(heading * DEGTOR)
             cc.translate(-x - w / 2., -y - h / 2.)
-            cc.set_source_pixbuf(pixbuf, x, y)
+            Gdk.cairo_set_source_pixbuf(cc, pixbuf, x, y)
             cc.rectangle(x, y, w, h)
             cc.fill()
             cc.restore()
@@ -304,9 +299,8 @@ class TurtleGraphics:
     def draw_text(self, label, x, y, size, width, heading, scale):
         ''' Draw text '''
 
-        def _draw_text(cr, label, x, y, size, width, scale, heading, rgb):
-            cc = pangocairo.CairoContext(cr)
-            pl = cc.create_layout()
+        def _draw_text(cc, label, x, y, size, width, scale, heading, rgb):
+            pl = PangoCairo.create_layout(cc)
             fd = Pango.FontDescription('Sans')
             fd.set_size(int(size * scale) * Pango.SCALE)
             pl.set_font_description(fd)
@@ -315,14 +309,14 @@ class TurtleGraphics:
             elif isinstance(label, (float, int)):
                 pl.set_text(str(label))
             else:
-                pl.set_text(str(label))
+                pl.set_text(str(label),len(str(label)))
             pl.set_width(int(width) * Pango.SCALE)
             cc.save()
             cc.translate(x, y)
             cc.rotate(heading * DEGTOR)
-            cr.set_source_rgb(rgb[0] / 255., rgb[1] / 255., rgb[2] / 255.)
-            cc.update_layout(pl)
-            cc.show_layout(pl)
+            cc.set_source_rgb(rgb[0] / 255., rgb[1] / 255., rgb[2] / 255.)
+            PangoCairo.update_layout(cc,pl)
+            PangoCairo.show_layout(cc,pl)
             cc.restore()
 
         width *= scale

@@ -19,7 +19,7 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #THE SOFTWARE.
 
-from gi.repository import Gtk
+from gi.repository import Gtk, Gdk , GdkPixbuf
 import cairo
 
 from taconstants import (EXPANDABLE, EXPANDABLE_ARGS, OLD_NAMES, CONSTANTS,
@@ -28,10 +28,10 @@ from taconstants import (EXPANDABLE, EXPANDABLE_ARGS, OLD_NAMES, CONSTANTS,
 from tapalette import (palette_blocks, block_colors, expandable_blocks,
                        content_blocks, block_names, block_primitives,
                        block_styles, special_block_colors)
-from tasprite_factory import (SVG, svg_str_to_pixbuf)
+from tasprite_factory import SVG, svg_str_to_pixbuf
 import sprites
 
-from tautils import (debug_output, error_output)
+from tautils import debug_output, error_output
 
 
 class Blocks:
@@ -1139,8 +1139,7 @@ def _pixbuf_to_cairo_surface(image, width, height):
     surface = cairo.ImageSurface(
         cairo.FORMAT_ARGB32, int(width), int(height))
     context = cairo.Context(surface)
-    context = Gdk.CairoContext(context)
-    context.set_source_pixbuf(image, 0, 0)
+    Gdk.cairo_set_source_pixbuf(context, image, 0, 0)
     context.rectangle(0, 0, int(width), int(height))
     context.fill()
     return surface

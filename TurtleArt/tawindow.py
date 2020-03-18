@@ -24,10 +24,11 @@
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+gi.require_version('PangoCairo', '1.0')
+from gi.repository import Gtk, Gdk ,GObject, GdkPixbuf
 from gi.repository import GObject
-from gi.repository import Pango
-import pangocairo
+from gi.repository import Pango, PangoCairo
+from sugar3.activity import activity
 
 from gettext import gettext as _
 
@@ -122,7 +123,7 @@ class TurtleArtWindow():
         if isinstance(canvas_window, Gtk.DrawingArea):
             self.interactive_mode = True
             self.window = canvas_window
-            self.window.set_flags(Gtk.CAN_FOCUS)
+            self.window.set_can_focus(True)
             self.window.show_all()
             if running_sugar:
                 self.parent.show_all()
@@ -161,7 +162,7 @@ class TurtleArtWindow():
         # dimensions
         self.width = Gdk.Screen.width()
         self.height = Gdk.Screen.height()
-        self.rect = (0, 0, 0, 0)
+        self.rect = Gdk.Rectangle()
 
         self.no_help = False
         self.last_label = None
@@ -332,7 +333,7 @@ class TurtleArtWindow():
         dpi = get_screen_dpi()
         if self.hw in (XO1, XO15, XO175, XO4):
             dpi = 133  # Tweek because of XO display peculiarities
-        font_map_default = pangocairo.cairo_font_map_get_default()
+        font_map_default = PangoCairo.font_map_get_default()
         font_map_default.set_resolution(dpi)
 
     def _tablet_mode(self):
@@ -479,19 +480,21 @@ class TurtleArtWindow():
         self.window.add_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
         self.window.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
         self.window.add_events(Gdk.EventMask.KEY_PRESS_MASK)
-        self.window.connect('expose-event', self._expose_cb)
+        self.window.drag_dest_set(Gtk.DestDefaults.ALL, [],
+                                  Gdk.DragAction.COPY)
+        self.window.drag_dest_set_target_list(None)
+        self.window.drag_dest_add_text_targets()
+        self.window.connect('draw', self._draw_cb)
         self.window.connect('button-press-event', self._buttonpress_cb)
         self.window.connect('button-release-event', self._buttonrelease_cb)
         self.window.connect('motion-notify-event', self._move_cb)
         self.window.connect('key-press-event', self._keypress_cb)
+        self.window.connect('drag_data_received', self._drag_data_received)
+
         Gdk.Screen.get_default().connect('size-changed',
                                              self._configure_cb)
 
-        target = [('text/plain', 0, 0)]
-        self.window.drag_dest_set(Gtk.DestDefaults.ALL, target,
-                                  Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
-        self.window.connect('drag_data_received', self._drag_data_received)
-
+        
     def _show_unfullscreen_button(self):
         if self.activity._is_fullscreen and \
                 self.activity.props.enable_fullscreen_mode:
@@ -662,30 +665,22 @@ class TurtleArtWindow():
                                                CONSTANTS[blk.name]))
                 blk.resize()
 
-    def _expose_cb(self, win=None, event=None):
+    def _draw_cb(self, win, context):
         ''' Repaint '''
-        self.do_expose_event(event)
+        self.do_draw(context)
         return True
 
-    def do_expose_event(self, event=None):
+    def do_draw(self, cr):
         ''' Handle the expose-event by drawing '''
 
-        # Create the cairo context
-        cr = self.window.window.cairo_create()
 
         # TODO: set global scale
         # find_sprite needs rescaled coordinates
         # sw needs new bounds set
         # cr.scale(self.activity.global_x_scale, self.activity.global_y_scale)
-
-        if event is None:
-            cr.rectangle(self.rect.x, self.rect.y,
+        cr.rectangle(self.rect.x, self.rect.y,
                          self.rect.width, self.rect.height)
-        else:
-        # Restrict Cairo to the exposed area; avoid extra work
-            cr.rectangle(event.area.x, event.area.y,
-                         event.area.width, event.area.height)
-        cr.clip()
+        
 
         if self.turtle_canvas is not None:
             cr.set_source_surface(self.turtle_canvas)
@@ -774,8 +769,8 @@ class TurtleArtWindow():
 
     def draw_overlay(self, overlay):
         ''' Draw a coordinate grid onto the canvas. '''
-        width = self.overlay_shapes[overlay].rect[2]
-        height = self.overlay_shapes[overlay].rect[3]
+        width = self.overlay_shapes[overlay].rect.width
+        height = self.overlay_shapes[overlay].rect.height
         if self.running_sugar:
             y_offset = 0
         else:
@@ -1492,7 +1487,7 @@ class TurtleArtWindow():
                 if blk is not None:
                     # Make sure stop button is visible
                     if self.running_sugar:
-                        self.activity.stop_turtle_button.set_icon("stopiton")
+                        self.activity.stop_turtle_button.set_icon_name("stopiton")
                         self.activity.stop_turtle_button.set_tooltip(
                             _('Stop turtle'))
                     elif self.interactive_mode:

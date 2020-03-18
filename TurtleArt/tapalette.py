@@ -78,7 +78,7 @@ block_styles = {'basic-style': [],
                 'portfolio-style-1x2': []}
 
 
-from gi.repository import Gtk
+from gi.repository import Gtk, Gdk
 
 try:
     from sugar3.graphics import style

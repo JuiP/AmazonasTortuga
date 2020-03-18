@@ -28,13 +28,18 @@ import os
 
 import gi
 gi.require_version('Gtk', '3.0')
+gi.require_version('Gst', '1.0')
 
 from gi.repository import GObject
 GObject.threads_init()
+Gst.init(None)
 
 from gi.repository import Gst
 import Gst.interfaces
 from gi.repository import Gtk
+from gi.repository import Gdk
+from gi.repository import GObject
+from gi.repository import GdkX11, GstVideo
 
 
 def play_audio_from_file(lc, file_path):
@@ -197,11 +202,11 @@ class GstPlayer(GObject.GObject):
         self.playing = False
         self.error = False
 
-        self.player = Gst.ElementFactory.make('playbin2', 'player')
+        self.player = Gst.ElementFactory.make('playbin', 'player')
 
         videowidget.realize()
         self.videowidget = videowidget
-        self.videowidget_xid = videowidget.window.xid
+        self.videowidget_xid = videowidget.get_proprerty('window').get_xid()
         self._init_video_sink()
 
         bus = self.player.get_bus()
@@ -214,9 +219,9 @@ class GstPlayer(GObject.GObject):
         self.player.set_property('uri', uri)
 
     def on_sync_message(self, bus, message):
-        if message.structure is None:
+        if message.get_structure() is None:
             return
-        if message.structure.get_name() == 'prepare-xwindow-id':
+        if message.get_structure().get_name() == 'prepare-window-handle':
             self.videowidget.set_sink(message.src, self.videowidget_xid)
             message.src.set_property('force-aspect-ratio', True)
 
@@ -241,15 +246,15 @@ class GstPlayer(GObject.GObject):
         #     logging.debug(message.type)
 
     def _init_video_sink(self):
-        self.bin = Gst.Bin()
-        videoscale = Gst.ElementFactory.make('videoscale')
+        self.bin = Gst.Bin.new()
+        videoscale = Gst.ElementFactory.make('videoscale', None)
         self.bin.add(videoscale)
-        pad = videoscale.get_pad('sink')
+        pad = videoscale.get_static_pad('sink')
         ghostpad = Gst.GhostPad.new('sink', pad)
         self.bin.add_pad(ghostpad)
         videoscale.set_property('method', 0)
 
-        caps_string = 'video/x-raw-yuv, '
+        caps_string = 'video/x-raw, '
         r = self.videowidget.get_allocation()
         if r.width > 500 and r.height > 500:
             # Sigh... xvimagesink on the XOs will scale the video to fit
@@ -260,16 +265,20 @@ class GstPlayer(GObject.GObject):
             caps_string += 'width=%d, height=%d' % (w, h)
         else:
             caps_string += 'width=480, height=360'
-        caps = Gst.Caps(caps_string)
+        caps = Gst.Caps.from_string(caps_string)
         self.filter = Gst.ElementFactory.make('capsfilter', 'filter')
         self.bin.add(self.filter)
         self.filter.set_property('caps', caps)
 
-        conv = Gst.ElementFactory.make('ffmpegcolorspace', 'conv')
+        conv = Gst.ElementFactory.make('videoconvert', 'conv')
         self.bin.add(conv)
         videosink = Gst.ElementFactory.make('autovideosink')
         self.bin.add(videosink)
-        Gst.element_link_many(videoscale, self.filter, conv, videosink)
+
+        videoscale.link(self.filter)
+        self.filter.link(conv)
+        conv.link(videosink)
+
         self.player.set_property('video-sink', self.bin)
 
     def pause(self):
@@ -302,8 +311,8 @@ class VideoWidget(Gtk.DrawingArea):
         GObject.GObject.__init__(self)
         self.set_events(Gdk.EventMask.EXPOSURE_MASK)
         self.imagesink = None
-        self.unset_flags(Gtk.DOUBLE_BUFFERED)
-        self.set_flags(Gtk.APP_PAINTABLE)
+        self.set_double_buffered(True)
+        self.set_app_paintable(True)
 
     def do_expose_event(self, event):
         if self.imagesink:
@@ -314,4 +323,4 @@ class VideoWidget(Gtk.DrawingArea):
 
     def set_sink(self, sink, xid):
         self.imagesink = sink
-        self.imagesink.set_xwindow_id(xid)
+        self.imagesink.set_window_handle(xid)
